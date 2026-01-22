@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import openpyxl
 from datetime import date
 
 st.title("Accounts Receivable Aging & Cash Forecasting System")
@@ -247,3 +248,4 @@ if ar_df is not None and not ar_df.empty:
     st.download_button("Download Full Invoices CSV", data=ar_df.to_csv(index=False), file_name="full_invoices.csv", mime="text/csv")
     st.download_button("Download AR Aging Summary CSV", data=aging_summary.to_csv(index=False), file_name="ar_aging_summary.csv", mime="text/csv")
     st.download_button("Download Cash Forecast CSV", data=cash_forecast.to_csv(index=False), file_name="cash_forecast.csv", mime="text/csv")
+
