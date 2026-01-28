@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import openpyxl
+import re
 from datetime import date
 
 st.title("Accounts Receivable Aging & Cash Forecasting System")
@@ -28,16 +29,81 @@ uploaded_file = None
 # -----------------------------
 # 2️⃣ Upload CSV/Excel
 # -----------------------------
+
 if mode == "Upload CSV/Excel":
     st.subheader("Upload your file")
     uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=['csv', 'xlsx'])
 
     if uploaded_file is not None:
         st.success("File uploaded successfully!")
+
+        # -----------------------------
+        # Read the file
+        # -----------------------------
         if uploaded_file.name.endswith(".csv"):
             df = pd.read_csv(uploaded_file)
         else:
             df = pd.read_excel(uploaded_file)
+
+        # -----------------------------
+        # Normalize column headers
+        # -----------------------------
+        def clean_column(col_name):
+            col_name = col_name.strip().lower()              # remove spaces and lowercase
+            col_name = re.sub(r'[^a-z0-9 ]', '', col_name)  # remove special characters
+            col_name = re.sub(r'\s+', ' ', col_name)        # collapse multiple spaces
+            return col_name
+
+        df.columns = [clean_column(c) for c in df.columns]
+
+        # -----------------------------
+        # Map alternatives to required columns
+        # -----------------------------
+        column_map = {
+            'vendor name': 'Customer Name',
+            'cust name': 'Customer Name',
+            'client name': 'Customer Name',
+            'customer': 'Customer Name',
+            'invoice no': 'Invoice Number',
+            'inv no': 'Invoice Number',
+            'invoice number': 'Invoice Number',
+            'date of invoice': 'Invoice Date',
+            'inv date': 'Invoice Date',
+            'billing date': 'Invoice Date',
+            'date': 'Invoice Date',
+            'due date': 'Due Date',
+            'payment due date': 'Due Date',
+            'amount': 'Amount',
+            'invoice amount': 'Amount',
+            'total': 'Amount',
+            'paid date': 'Payment Date',
+            'date paid': 'Payment Date',
+            'payment received': 'Payment Date',
+            'paid amount': 'Payment Amount',
+            'amount paid': 'Payment Amount',
+        }
+
+        # Normalize mapping keys same way as df.columns
+        column_map_clean = {clean_column(k): v for k, v in column_map.items()}
+
+        # Rename columns if alternative exists
+        for alt_name, correct_name in column_map_clean.items():
+            if alt_name in df.columns:
+                df.rename(columns={alt_name: correct_name}, inplace=True)
+
+        # -----------------------------
+        # Validate required columns
+        # -----------------------------
+        required_cols = ['Customer Name', 'Invoice Number', 'Invoice Date', 'Due Date', 'Amount', 'Payment Date', 'Payment Amount']
+        missing_cols = [c for c in required_cols if c not in df.columns]
+
+        if missing_cols:
+            st.error(f"Uploaded file is missing required columns: {missing_cols}")
+            st.stop()
+
+        # -----------------------------
+        # Display uploaded dataframe
+        # -----------------------------
         st.dataframe(df.head())
 
 # -----------------------------
@@ -258,5 +324,3 @@ if ar_df is not None and not ar_df.empty:
     st.download_button("Download Full Invoices CSV", data=ar_df.to_csv(index=False), file_name="full_invoices.csv", mime="text/csv")
     st.download_button("Download AR Aging Summary CSV", data=aging_summary.to_csv(index=False), file_name="ar_aging_summary.csv", mime="text/csv")
     st.download_button("Download Cash Forecast CSV", data=cash_forecast.to_csv(index=False), file_name="cash_forecast.csv", mime="text/csv")
-
-
