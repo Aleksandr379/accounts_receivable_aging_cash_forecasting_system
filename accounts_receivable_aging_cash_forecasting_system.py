@@ -60,27 +60,27 @@ if mode == "Upload CSV/Excel":
         # Map alternatives to required columns
         # -----------------------------
         column_map = {
-            'vendor name': 'Customer Name',
-            'cust name': 'Customer Name',
-            'client name': 'Customer Name',
-            'customer': 'Customer Name',
-            'invoice no': 'Invoice Number',
-            'inv no': 'Invoice Number',
-            'invoice number': 'Invoice Number',
-            'date of invoice': 'Invoice Date',
-            'inv date': 'Invoice Date',
-            'billing date': 'Invoice Date',
-            'date': 'Invoice Date',
-            'due date': 'Due Date',
-            'payment due date': 'Due Date',
-            'amount': 'Amount',
-            'invoice amount': 'Amount',
-            'total': 'Amount',
-            'paid date': 'Payment Date',
-            'date paid': 'Payment Date',
-            'payment received': 'Payment Date',
-            'paid amount': 'Payment Amount',
-            'amount paid': 'Payment Amount',
+            'vendor name': 'customer name',
+            'cust name': 'customer name',
+            'client name': 'customer name',
+            'customer': 'customer name',
+            'invoice no': 'invoice number',
+            'inv no': 'invoice number',
+            'invoice number': 'invoice number',
+            'date of invoice': 'invoice date',
+            'inv date': 'invoice date',
+            'billing date': 'invoice date',
+            'date': 'invoice date',
+            'due date': 'due date',
+            'payment due date': 'due date',
+            'amount': 'amount',
+            'invoice amount': 'amount',
+            'total': 'amount',
+            'paid date': 'payment date',
+            'date paid': 'payment date',
+            'payment received': 'payment date',
+            'paid amount': 'payment amount',
+            'amount paid': 'payment amount',
         }
 
         # Normalize mapping keys same way as df.columns
@@ -94,7 +94,14 @@ if mode == "Upload CSV/Excel":
         # -----------------------------
         # Validate required columns
         # -----------------------------
-        required_cols = ['Customer Name', 'Invoice Number', 'Invoice Date', 'Due Date', 'Amount', 'Payment Date', 'Payment Amount']
+        required_cols = [
+            'customer name',
+            'invoice number',
+            'invoice date',
+            'due date',
+            'amount',
+            'payment date',
+            'payment amount']
         missing_cols = [c for c in required_cols if c not in df.columns]
 
         if missing_cols:
@@ -132,15 +139,17 @@ elif mode == "Enter Manually":
             elif due_date < invoice_date:
                 st.error("Due Date cannot be before Invoice Date.")
             else:
-                st.session_state.manual_invoices.append({
-                    "Customer Name": customer_name,
-                    "Invoice Number": invoice_number,
-                    "Invoice Date": invoice_date,
-                    "Due Date": due_date,
-                    "Amount": amount,
-                    "Payment Date": payment_date,
-                    "Payment Amount": payment_amount
-                })
+                invoice_dict = {
+                    "customer name": customer_name,
+                    "invoice number": invoice_number,
+                    "invoice date": invoice_date,
+                    "due date": due_date,
+                    "amount": amount,
+                    "payment date": payment_date,
+                    "payment amount": payment_amount
+                }
+                
+                st.session_state.manual_invoices.append(invoice_dict)
                 st.success(f"Invoice {invoice_number} for {customer_name} added!")
                 st.rerun()
 
@@ -161,7 +170,7 @@ if "manual_invoices" in st.session_state and st.session_state.manual_invoices:
 # -----------------------------
 if ar_df is not None and not ar_df.empty:
     # Validate required columns
-    required_cols = ['Customer Name', 'Invoice Number', 'Invoice Date', 'Due Date', 'Amount', 'Payment Date']
+    required_cols = ['customer name', 'invoice number', 'invoice date', 'due date', 'amount', 'payment date']
     missing_cols = [c for c in required_cols if c not in ar_df.columns]
     if missing_cols:
         st.error(f"Uploaded file is missing required columns: {missing_cols}")
@@ -177,31 +186,31 @@ if ar_df is not None and not ar_df.empty:
     )
 
     # Ensure correct types
-    ar_df['Invoice Date'] = pd.to_datetime(ar_df['Invoice Date'], errors='coerce')
-    ar_df['Due Date'] = pd.to_datetime(ar_df['Due Date'], errors='coerce')
-    ar_df['Payment Date'] = pd.to_datetime(ar_df['Payment Date'], errors='coerce')
-    if 'Payment Amount' not in ar_df.columns:
-        ar_df['Payment Amount'] = 0.0
+    ar_df['invoice date'] = pd.to_datetime(ar_df['invoice date'], errors='coerce')
+    ar_df['due date'] = pd.to_datetime(ar_df['due date'], errors='coerce')
+    ar_df['payment date'] = pd.to_datetime(ar_df['payment date'], errors='coerce')
+    if 'payment amount' not in ar_df.columns:
+        ar_df['payment amount'] = 0.0
     else:
-        ar_df['Payment Amount'] = ar_df['Payment Amount'].fillna(0)
+        ar_df['payment amount'] = ar_df['payment amount'].fillna(0)
 
 
     # Calculate outstanding amount
-    ar_df['Outstanding Amount'] = (ar_df['Amount'] - ar_df['Payment Amount']).clip(lower=0)
-    ar_df['Payment Status'] = ar_df['Outstanding Amount'].apply(lambda x: "Paid" if x == 0 else "Unpaid")
+    ar_df['outstanding amount'] = (ar_df['amount'] - ar_df['payment amount']).clip(lower=0)
+    ar_df['payment status'] = ar_df['outstanding amount'].apply(lambda x: "Paid" if x == 0 else "Unpaid")
 
     # Apply status filter
     filtered_df = ar_df.copy()
     if status_filter == "Unpaid Only":
-        filtered_df = filtered_df[filtered_df['Payment Status'] == "Unpaid"]
+        filtered_df = filtered_df[filtered_df['payment status'] == "Unpaid"]
     elif status_filter == "Paid Only":
-        filtered_df = filtered_df[filtered_df['Payment Status'] == "Paid"]
+        filtered_df = filtered_df[filtered_df['payment status'] == "Paid"]
 
     # -----------------------------
     # AR Aging
     # -----------------------------
     today = pd.to_datetime(date.today())
-    filtered_df['Days Outstanding'] = (today - filtered_df['Due Date']).dt.days
+    filtered_df['Days Outstanding'] = (today - filtered_df['due date']).dt.days
     filtered_df.loc[filtered_df['Days Outstanding'] < 0, 'Days Outstanding'] = 0
 
     def aging_category(days):
@@ -214,14 +223,14 @@ if ar_df is not None and not ar_df.empty:
         else:
             return ">90"
 
-    filtered_df['Aging Category'] = filtered_df['Days Outstanding'].apply(aging_category)
-    aging_summary = filtered_df.groupby('Aging Category')['Outstanding Amount'].sum().reindex(
+    filtered_df['aging category'] = filtered_df['Days Outstanding'].apply(aging_category)
+    aging_summary = filtered_df.groupby('aging category')['outstanding amount'].sum().reindex(
         ["0-30", "31-60", "61-90", ">90"], fill_value=0
     ).reset_index()
 
     st.subheader("Accounts Receivable Aging")
     st.dataframe(aging_summary)
-    st.bar_chart(aging_summary.set_index('Aging Category'))
+    st.bar_chart(aging_summary.set_index('aging category'))
 
     # -----------------------------
     # Cash Forecast
@@ -232,19 +241,19 @@ if ar_df is not None and not ar_df.empty:
     def create_cash_df(df, cash_option):
         df = df.copy()
         if cash_option == "Unpaid Only":
-            df = df[df['Outstanding Amount'] > 0].copy()
-            df['Expected Payment'] = df['Due Date']
-            df['Cash Amount'] = df['Outstanding Amount']
+            df = df[df['outstanding amount'] > 0].copy()
+            df['Expected Payment'] = df['due date']
+            df['Cash Amount'] = df['outstanding amount']
         elif cash_option == "Paid Only":
-            df = df[df['Outstanding Amount'] == 0].copy()
-            df['Expected Payment'] = df['Payment Date']
-            df['Cash Amount'] = df['Payment Amount']
+            df = df[df['outstanding amount'] == 0].copy()
+            df['Expected Payment'] = df['payment date']
+            df['Cash Amount'] = df['payment amount']
         else:  # Both
-            df['Expected Payment'] = df['Payment Date'].fillna(df['Due Date'])
+            df['Expected Payment'] = df['payment date'].fillna(df['due date'])
     
             # Vectorized version for better performance
-            df['Cash Amount'] = df['Outstanding Amount']
-            df.loc[df['Outstanding Amount'] == 0, 'Cash Amount'] = df['Payment Amount']
+            df['Cash Amount'] = df['outstanding amount']
+            df.loc[df['outstanding amount'] == 0, 'Cash Amount'] = df['payment amount']
 
         df['Expected Payment'] = pd.to_datetime(df['Expected Payment'])
         return df
@@ -276,17 +285,17 @@ if ar_df is not None and not ar_df.empty:
     # -----------------------------
     # Customer-specific AR & Cash
     # -----------------------------
-    customers = filtered_df['Customer Name'].dropna().unique()
+    customers = filtered_df['customer name'].dropna().unique()
     if len(customers) > 0:
         selected_customer = st.selectbox("Filter by Customer", customers)
-        customer_df = filtered_df[filtered_df['Customer Name'] == selected_customer].copy()
+        customer_df = filtered_df[filtered_df['customer name'] == selected_customer].copy()
 
-        customer_aging = customer_df.groupby('Aging Category')['Outstanding Amount'].sum().reindex(
+        customer_aging = customer_df.groupby('aging category')['outstanding amount'].sum().reindex(
             ["0-30", "31-60", "61-90", ">90"], fill_value=0
         ).reset_index()
         st.subheader(f"{selected_customer} - Accounts Receivable Aging")
         st.dataframe(customer_aging)
-        st.bar_chart(customer_aging.set_index('Aging Category'))
+        st.bar_chart(customer_aging.set_index('aging category'))
 
         customer_cash_df = create_cash_df(customer_df, cash_option)
 
@@ -314,7 +323,7 @@ if ar_df is not None and not ar_df.empty:
     # Summary Metrics
     # -----------------------------
     st.subheader("Summary Metrics")
-    st.metric("Total Accounts Receivable", f"${filtered_df['Outstanding Amount'].sum():,.2f}")
+    st.metric("Total Accounts Receivable", f"${filtered_df['outstanding amount'].sum():,.2f}")
     st.metric("Total Expected Cash", f"${cash_forecast['Cash Amount'].sum():,.2f}")
 
     # -----------------------------
