@@ -243,23 +243,31 @@ if ar_df is not None and not ar_df.empty:
 
     def create_cash_df(df, cash_option):
         df = df.copy()
+
         if cash_option == "Unpaid Only":
             df = df[df['outstanding amount'] > 0].copy()
             df['Expected Payment'] = df['due date']
             df['Cash Amount'] = df['outstanding amount']
+
         elif cash_option == "Paid Only":
-            df = df[df['outstanding amount'] == 0].copy()
+            df = df[df['payment amount'] > 0].copy()
             df['Expected Payment'] = df['payment date']
             df['Cash Amount'] = df['payment amount']
-        else:  # Both
-            df['Expected Payment'] = df['payment date'].fillna(df['due date'])
-    
-            # Vectorized version for better performance
-            df['Cash Amount'] = df['outstanding amount']
-            df.loc[df['outstanding amount'] == 0, 'Cash Amount'] = df['payment amount']
+
+        else:  # Both Paid and Unpaid (CORRECT handling)
+            paid_df = df[df['payment amount'] > 0].copy()
+            paid_df['Expected Payment'] = paid_df['payment date']
+            paid_df['Cash Amount'] = paid_df['payment amount']
+
+            unpaid_df = df[df['outstanding amount'] > 0].copy()
+            unpaid_df['Expected Payment'] = unpaid_df['due date']
+            unpaid_df['Cash Amount'] = unpaid_df['outstanding amount']
+
+            df = pd.concat([paid_df, unpaid_df], ignore_index=True)
 
         df['Expected Payment'] = pd.to_datetime(df['Expected Payment'])
         return df
+
 
     cash_df = create_cash_df(filtered_df, cash_option)
     if cash_df.empty:
