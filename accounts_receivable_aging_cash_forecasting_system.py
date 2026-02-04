@@ -6,14 +6,15 @@ from datetime import date
 
 st.title("Accounts Receivable Aging & Cash Forecasting System")
 st.info(
-    "When you upload your Excel file, please make sure your column names are exactly:\n\n"
-    "- Customer Name\n"
-    "- Invoice Number\n"
-    "- Invoice Date\n"
+    "You may upload an Excel or CSV file with flexible column names.\n\n"
+    "The app automatically recognizes:\n"
+    "- Customer Name (Customer, Client Name, etc.)\n"
+    "- Invoice Number (Invoice No, Vendor Name)\n"
+    "- Invoice Date (Inv Date, Billing Date)\n"
     "- Due Date\n"
     "- Amount\n"
-    "- Payment Date\n"
-    "- Payment Amount\n"
+    "- Payment Date (optional)\n"
+    "- Payment Amount (optional)\n"
 )
 
 # -----------------------------
@@ -49,63 +50,65 @@ if mode == "Upload CSV/Excel":
         # Normalize column headers
         # -----------------------------
         def clean_column(col_name):
-            col_name = col_name.strip().lower()              # remove spaces and lowercase
-            col_name = re.sub(r'[^a-z0-9 ]', '', col_name)  # remove special characters
-            col_name = re.sub(r'\s+', ' ', col_name)        # collapse multiple spaces
+            col_name = col_name.strip().lower()
+            col_name = re.sub(r'[^a-z0-9 ]', '', col_name)
+            col_name = re.sub(r'\s+', ' ', col_name)
             return col_name
 
         df.columns = [clean_column(c) for c in df.columns]
 
         # -----------------------------
-        # Map alternatives to required columns
+        # Canonical column definitions
         # -----------------------------
-        column_map = {
-            'vendor name': 'customer name',
-            'cust name': 'customer name',
-            'client name': 'customer name',
-            'customer': 'customer name',
-            'invoice no': 'invoice number',
-            'inv no': 'invoice number',
-            'invoice number': 'invoice number',
-            'date of invoice': 'invoice date',
-            'inv date': 'invoice date',
-            'billing date': 'invoice date',
-            'date': 'invoice date',
-            'due date': 'due date',
-            'payment due date': 'due date',
-            'amount': 'amount',
-            'invoice amount': 'amount',
-            'total': 'amount',
-            'paid date': 'payment date',
-            'date paid': 'payment date',
-            'payment received': 'payment date',
-            'paid amount': 'payment amount',
-            'amount paid': 'payment amount',
+        required_columns = {
+            'customer name': [
+                'customer name', 'cust name', 'client name', 'customer'
+            ],
+            'invoice number': [
+                'invoice number', 'invoice no', 'inv no', 'vendor name'
+            ],
+            'invoice date': [
+                'invoice date', 'inv date', 'date of invoice', 'billing date'
+            ],
+            'due date': [
+                'due date', 'payment due date'
+            ],
+            'amount': [
+                'amount', 'invoice amount', 'total'
+            ],
+            'payment date': [
+                'payment date', 'paid date', 'date paid', 'payment received'
+            ],
+            'payment amount': [
+                'payment amount', 'paid amount', 'amount paid'
+            ]
         }
 
-        # Normalize mapping keys same way as df.columns
-        column_map_clean = {clean_column(k): v for k, v in column_map.items()}
-
-        # Rename columns if alternative exists
-        for alt_name, correct_name in column_map_clean.items():
-            if alt_name in df.columns:
-                df.rename(columns={alt_name: correct_name}, inplace=True)
-
         # -----------------------------
-        # Validate required columns
+        # Standardize column names
         # -----------------------------
-        required_cols = [
-            'customer name',
-            'invoice number',
-            'invoice date',
-            'due date',
-            'amount',
-            'payment date',
-            'payment amount']
-        missing_cols = [c for c in required_cols if c not in df.columns]
+        def standardize_columns(df, required_columns):
+            rename_map = {}
+
+            for canonical, aliases in required_columns.items():
+                for alias in aliases:
+                    alias_clean = clean_column(alias)
+                    if alias_clean in df.columns:
+                        rename_map[alias_clean] = canonical
+                        break
+
+            df = df.rename(columns=rename_map)
+
+            missing = [c for c in required_columns if c not in df.columns]
+            return df, missing
+
+        df, missing_cols = standardize_columns(df, required_columns)
 
         if missing_cols:
-            st.error(f"Uploaded file is missing required columns: {missing_cols}")
+            st.error(
+                "Uploaded file is missing required columns:\n" +
+                ", ".join(missing_cols)
+            )
             st.stop()
 
         # -----------------------------
